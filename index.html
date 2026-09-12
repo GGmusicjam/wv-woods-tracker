@@ -5,213 +5,429 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>WV Woodland Forage & Search Tracker</title>
   
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   
   <style>
     body, html {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      width: 100vw;
+      margin: 0; padding: 0; height: 100%; width: 100vw;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       overflow: hidden;
+      background: #111;
     }
-    #map {
-      height: 100%;
-      width: 100%;
-    }
+    #map { height: 100%; width: 100%; }
+
+    /* Top HUD */
     .hud-panel {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      right: 10px;
-      background: rgba(25, 30, 25, 0.92);
-      color: #fff;
-      padding: 10px 14px;
-      border-radius: 12px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-      z-index: 1000;
-      font-size: 13px;
+      position: absolute; top: 10px; left: 10px; right: 10px;
+      background: rgba(20, 26, 20, 0.94);
+      color: #fff; padding: 8px 12px; border-radius: 10px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 1000;
+      font-size: 13px; display: flex; justify-content: space-between; align-items: center;
     }
-    .hud-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    .hud-sub {
+      color: #81c784; font-weight: bold; font-family: monospace; font-size: 13px;
     }
+
+    /* Directional User Heading Marker */
+    .user-loc-wrapper {
+      position: relative; width: 44px; height: 44px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .user-heading-pointer {
+      position: absolute; width: 44px; height: 44px;
+      transform-origin: center center;
+      transition: transform 0.15s ease-out;
+      pointer-events: none;
+    }
+    .user-center-dot {
+      width: 14px; height: 14px; background: #ffffff;
+      border: 3px solid #00e5ff; border-radius: 50%;
+      box-shadow: 0 0 10px rgba(0, 229, 255, 0.8);
+      z-index: 2;
+    }
+
+    /* Floating Pin Button (FAB) */
+    .fab-pin {
+      position: absolute; bottom: 75px; right: 14px;
+      width: 52px; height: 52px; border-radius: 50%;
+      background: #00e5ff; color: #000; font-size: 22px;
+      display: flex; align-items: center; justify-content: center;
+      border: 2px solid #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      z-index: 1000; cursor: pointer;
+    }
+
+    /* Bottom Action Bar */
     .btn-bar {
-      position: absolute;
-      bottom: 20px;
-      left: 10px;
-      right: 10px;
-      display: flex;
-      gap: 8px;
-      z-index: 1000;
+      position: absolute; bottom: 20px; left: 10px; right: 10px;
+      display: flex; gap: 6px; z-index: 1000;
     }
     button {
-      flex: 1;
-      padding: 12px 6px;
-      background: #2e7d32;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      font-weight: bold;
-      font-size: 13px;
-      cursor: pointer;
-      box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+      flex: 1; padding: 12px 4px; background: #2e7d32;
+      color: #fff; border: none; border-radius: 8px;
+      font-weight: 600; font-size: 12px; cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
     }
-    button.tracking {
-      background: #c62828;
-      animation: pulse 1.5s infinite;
+    button.tracking { background: #c62828; animation: pulse 1.5s infinite; }
+    button.secondary { background: #37474f; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+
+    /* Waypoint Modal */
+    #waypointModal {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 85%; max-width: 340px;
+      background: #1e281e; color: #fff;
+      border-radius: 14px; padding: 16px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+      z-index: 1002; display: none;
     }
-    button.secondary {
-      background: #37474f;
+    #waypointModal h4 { margin: 0 0 12px 0; color: #81c784; font-size: 15px; text-align: center; }
+    .category-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;
     }
-    @keyframes pulse {
-      0% { opacity: 1; }
-      50% { opacity: 0.7; }
-      100% { opacity: 1; }
+    .cat-btn {
+      background: #2b3a2b; color: #e0e0e0; border: 1px solid #405440;
+      padding: 10px 6px; border-radius: 8px; font-size: 12px;
+      text-align: center; cursor: pointer; font-weight: normal;
     }
-    /* Habitat & Legal Info Drawer */
-    #infoModal {
-      position: absolute;
-      bottom: 75px;
-      left: 10px;
-      right: 10px;
-      max-height: 55vh;
-      overflow-y: auto;
-      background: #1e281e;
-      color: #e0e0e0;
-      border-radius: 12px;
-      padding: 16px;
-      z-index: 1001;
-      display: none;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-      font-size: 13px;
-      line-height: 1.5;
+    .cat-btn.selected { background: #2e7d32; border-color: #81c784; color: #fff; font-weight: bold; }
+    #pinNoteInput {
+      width: calc(100% - 16px); padding: 8px; border-radius: 6px;
+      background: #111; border: 1px solid #444; color: #fff;
+      font-size: 12px; margin-bottom: 12px;
     }
-    #infoModal h3 { margin-top: 0; color: #81c784; }
-    #infoModal ul { padding-left: 18px; margin: 6px 0; }
-    .close-btn {
-      float: right;
-      background: none;
-      border: none;
-      color: #aaa;
-      font-size: 18px;
-      font-weight: bold;
-      cursor: pointer;
+    .modal-actions { display: flex; gap: 8px; }
+
+    /* Guide Drawer */
+    #guideDrawer {
+      position: absolute; bottom: 70px; left: 10px; right: 10px;
+      max-height: 65vh; background: #1a221a; color: #e0e0e0;
+      border-radius: 12px; z-index: 1001; display: none;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6); overflow: hidden;
     }
+    .drawer-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 14px; background: #141c14; border-bottom: 1px solid #2d3b2d;
+    }
+    .tabs-bar { display: flex; background: #222e22; border-bottom: 1px solid #2e3d2e; }
+    .tab-btn {
+      flex: 1; padding: 10px 6px; border-radius: 0; background: transparent;
+      color: #aaa; font-size: 12px; font-weight: bold; border-bottom: 2px solid transparent;
+    }
+    .tab-btn.active { color: #81c784; background: #1a221a; border-bottom: 2px solid #81c784; }
+    .drawer-content { padding: 14px; overflow-y: auto; max-height: calc(65vh - 90px); }
+    .folder-section { display: none; }
+    .folder-section.active { display: block; }
+    .plant-card { background: #243024; border-radius: 8px; margin-bottom: 14px; overflow: hidden; border: 1px solid #334433; }
+    .plant-card img { width: 100%; height: 150px; object-fit: cover; display: block; background: #111; }
+    .plant-card-body { padding: 10px; }
+    .plant-card-body h4 { margin: 0 0 4px 0; color: #a5d6a7; }
+    .plant-card-body p { margin: 4px 0; font-size: 12px; line-height: 1.4; }
+    .tag { display: inline-block; background: #2e7d32; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 10px; }
+    .tag.companion { background: #0277bd; }
+
+    /* Custom Waypoint Markers */
+    .custom-waypoint-badge {
+      display: flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px; border-radius: 50%;
+      background: #111; border: 2px solid #00e5ff;
+      font-size: 18px; box-shadow: 0 3px 6px rgba(0,0,0,0.5);
+    }
+    .partner-waypoint-badge { border-color: #ffb300; background: #221c0e; }
   </style>
 </head>
 <body>
 
-  <!-- Top Status Bar -->
+  <!-- Top Status Bar with Live Heading -->
   <div class="hud-panel">
-    <div class="hud-row">
-      <span id="gpsStatus">📍 GPS: Idle</span>
-      <span id="trackPoints">Points: 0</span>
+    <span id="gpsStatus">📍 GPS: Idle</span>
+    <span id="compassBearing" class="hud-sub">🧭 ---°</span>
+    <span id="trackPoints">Pts: 0 | Pins: 0</span>
+  </div>
+
+  <!-- Floating Pin Button -->
+  <div class="fab-pin" onclick="openWaypointModal()" title="Save Waypoint">📍+</div>
+
+  <!-- Waypoint Creator Modal -->
+  <div id="waypointModal">
+    <h4>Mark Waypoint at Current Location</h4>
+    <div class="category-grid">
+      <div class="cat-btn selected" onclick="selectCategory(this, '🚗', 'Truck / Parking')">🚗 Truck/Park</div>
+      <div class="cat-btn" onclick="selectCategory(this, '💧', 'Natural Spring')">💧 Spring</div>
+      <div class="cat-btn" onclick="selectCategory(this, '🌿', 'Ginseng Patch')">🌿 Patch</div>
+      <div class="cat-btn" onclick="selectCategory(this, '📍', 'Landmark')">📍 Landmark</div>
+    </div>
+    <input type="text" id="pinNoteInput" placeholder="Optional notes (e.g. moist north bench)" />
+    <div class="modal-actions">
+      <button class="secondary" onclick="closeWaypointModal()">Cancel</button>
+      <button onclick="saveCurrentWaypoint()">Save Pin</button>
     </div>
   </div>
 
-  <!-- Habitat & Regulations Reference Drawer -->
-  <div id="infoModal">
-    <button class="close-btn" onclick="toggleModal()">✕</button>
-    <h3>West Virginia Field Guide</h3>
-    
-    <strong>🏛️ Legal Public Land Collection:</strong>
-    <ul>
-      <li><strong>Monongahela National Forest:</strong> Harvesting allowed with a valid district USFS permit. Off-limits in Wilderness Areas (Cranberry, Dolly Sods, etc.) and Fernow Experimental Forest.</li>
-      <li><strong>WV State Lands (Parks, Forests, WMAs):</strong> <u>STRICTLY PROHIBITED</u>. No digging on any state-managed land.</li>
-      <li><strong>Private Land:</strong> Allowed only with written, signed permission from the owner carried with you.</li>
-    </ul>
+  <!-- Guide Drawer -->
+  <div id="guideDrawer">
+    <div class="drawer-header">
+      <strong style="color:#81c784">Field Guide & Regulatory Layers</strong>
+      <span style="cursor:pointer; font-size:18px;" onclick="toggleGuide()">✕</span>
+    </div>
+    <div class="tabs-bar">
+      <button class="tab-btn active" onclick="switchFolder('plantsTab', this)">🌿 Plant ID</button>
+      <button class="tab-btn" onclick="switchFolder('habitatTab', this)">🧭 Habitat</button>
+      <button class="tab-btn" onclick="switchFolder('legalTab', this)">⚖️ Legalities</button>
+    </div>
+    <div class="drawer-content">
 
-    <strong>🌿 Habitat & Terrain Indicators:</strong>
-    <ul>
-      <li><strong>Slope / Aspect:</strong> North and East-facing slopes (cool, rich microclimates with 70–80% canopy shade).</li>
-      <li><strong>Companion Plants:</strong> Look for Maidenhair Fern, Blue Cohosh, Black Cohosh, Bloodroot, Rattlesnake Fern, and Wild Yam.</li>
-      <li><strong>Overstory Trees:</strong> Sugar Maple, American Basswood, Yellow Buckeye, White Ash, and Tulip Poplar.</li>
-    </ul>
+      <div id="plantsTab" class="folder-section active">
+        <div class="plant-card">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/American_ginseng_Panax_quinquefolius.jpg/640px-American_ginseng_Panax_quinquefolius.jpg" alt="American Ginseng">
+          <div class="plant-card-body">
+            <h4>American Ginseng (Panax quinquefolius)</h4>
+            <span class="tag">Target Species</span>
+            <p><strong>Look For:</strong> 3-4 prongs radiating from central stalk, each with 5 serrated leaflets. Center cluster turns bright crimson red in late summer.</p>
+          </div>
+        </div>
 
-    <strong>🌱 Plant Ethics:</strong>
-    <ul>
-      <li>Must have at least 3 prongs (15 leaflets) and ripe red berries.</li>
-      <li>Always plant ripe seeds 1" deep right at the harvest site.</li>
-    </ul>
+        <div class="plant-card">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/Adiantum_pedatum_1.jpg/640px-Adiantum_pedatum_1.jpg" alt="Maidenhair Fern">
+          <div class="plant-card-body">
+            <h4>Maidenhair Fern (Adiantum pedatum)</h4>
+            <span class="tag companion">Prime Indicator</span>
+            <p><strong>Look For:</strong> Delicate fan-shaped fronds on wiry dark brown/black stems. Loves moist, calcium-rich slopes.</p>
+          </div>
+        </div>
+
+        <div class="plant-card">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Caulophyllum_thalictroides_seeds.jpg/640px-Caulophyllum_thalictroides_seeds.jpg" alt="Blue Cohosh">
+          <div class="plant-card-body">
+            <h4>Blue Cohosh (Caulophyllum thalictroides)</h4>
+            <span class="tag companion">Prime Indicator</span>
+            <p><strong>Look For:</strong> Powder-blue cast foliage with pea-sized blue seeds in late summer.</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="habitatTab" class="folder-section">
+        <h4 style="color:#81c784; margin-top:0;">Aspect & Microclimates</h4>
+        <ul>
+          <li><strong>Target Compass Heading:</strong> Slopes facing <strong>315° (NW) through 090° (E)</strong>. True North (000°) and Northeast (045°) are consistently the most productive.</li>
+          <li><strong>Position:</strong> Lower-to-middle third hollows and benches with rich, moist leaf mold.</li>
+          <li><strong>Overstory:</strong> Sugar Maple, American Basswood, Yellow Buckeye, and Tulip Poplar.</li>
+        </ul>
+      </div>
+
+      <div id="legalTab" class="folder-section">
+        <h4 style="color:#ff8a80; margin-top:0;">WV Harvest Regulations</h4>
+        <ul>
+          <li><strong>Season:</strong> September 1 to November 30 only.</li>
+          <li><strong>Red Polygons:</strong> Harvesting prohibited on WV State Lands, State Forests, WMAs, and Wilderness Areas.</li>
+          <li><strong>National Forests:</strong> Harvesting in Monongahela NF requires a district USFS permit.</li>
+          <li><strong>Replanting:</strong> Always plant ripe seeds 1" deep within 100 feet of harvest site.</li>
+        </ul>
+      </div>
+
+    </div>
   </div>
 
-  <!-- Main Map Container -->
+  <!-- Map Container -->
   <div id="map"></div>
 
-  <!-- Bottom Navigation Buttons -->
+  <!-- Bottom Buttons -->
   <div class="btn-bar">
+    <button id="locateBtn" class="secondary" onclick="locateUser()">Find Me</button>
     <button id="trackBtn" onclick="toggleTracking()">Start Track</button>
     <button class="secondary" onclick="exportGeoJSON()">Export</button>
     <button class="secondary" onclick="document.getElementById('importFile').click()">Import</button>
-    <button class="secondary" onclick="toggleModal()">Guide</button>
+    <button class="secondary" onclick="toggleGuide()">Guide</button>
     <input type="file" id="importFile" accept=".geojson,.json" style="display:none" onchange="importPartnerTrack(event)" />
   </div>
 
-  <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
-    // 1. Initialize Map centered on Monongahela National Forest, WV
-    const map = L.map('map', { zoomControl: false }).setView([38.7, -79.8], 10);
+    // 1. Initialize Map
+    const map = L.map('map', { zoomControl: false }).setView([38.75, -79.7], 9);
 
-    // USGS Topo Layer (Standard Topo)
     const topoLayer = L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 16,
-      attribution: 'USGS National Map'
+      maxZoom: 16, attribution: 'USGS National Map'
     }).addTo(map);
 
-    // Satellite Imagery Layer
     const satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 18,
-      attribution: 'Esri World Imagery'
+      maxZoom: 18, attribution: 'Esri World Imagery'
     });
 
-    // Base Layer Controls
-    L.control.layers({ "USGS Topographic": topoLayer, "Satellite": satLayer }, null, { position: 'topright' }).addTo(map);
+    // 2. Prohibited Harvesting Zones (Red Polygons)
+    const noHarvestZones = [
+      { name: "Dolly Sods Wilderness", coords: [[39.08, -79.37], [39.08, -79.28], [38.98, -79.28], [38.98, -79.37]] },
+      { name: "Cranberry Wilderness", coords: [[38.33, -80.32], [38.33, -80.14], [38.19, -80.14], [38.19, -80.32]] },
+      { name: "Otter Creek Wilderness", coords: [[39.04, -79.70], [39.04, -79.58], [38.94, -79.58], [38.94, -79.70]] },
+      { name: "Fernow Experimental Forest", coords: [[39.08, -79.73], [39.08, -79.65], [39.02, -79.65], [39.02, -79.73]] },
+      { name: "Coopers Rock State Forest", coords: [[39.70, -79.84], [39.70, -79.74], [39.63, -79.74], [39.63, -79.84]] },
+      { name: "Kanawha State Forest", coords: [[38.28, -81.68], [38.28, -81.60], [38.23, -81.60], [38.23, -81.68]] },
+      { name: "New River Gorge National Park", coords: [[38.08, -81.12], [38.08, -81.01], [37.82, -81.01], [37.82, -81.12]] }
+    ];
 
-    // 2. Tracking State & Persistent Storage
+    const restrictedLayer = L.layerGroup();
+    noHarvestZones.forEach(z => {
+      L.polygon(z.coords, { color: '#d50000', fillColor: '#ff1744', fillOpacity: 0.35, weight: 2 })
+        .bindPopup(`<strong>⚠️ NO HARVEST ZONE</strong><br>${z.name}<br><em>Harvesting wild ginseng is prohibited here.</em>`)
+        .addTo(restrictedLayer);
+    });
+    restrictedLayer.addTo(map);
+
+    // 3. User Tracks & Waypoints State
     let isTracking = false;
     let watchId = null;
-    let myCoordinates = JSON.parse(localStorage.getItem('my_searched_path')) || [];
-    
-    // Polyline for user's own searched track (Bright Cyan)
-    let myPolyline = L.polyline(myCoordinates, {
-      color: '#00e5ff',
-      weight: 4,
-      opacity: 0.85
-    }).addTo(map);
-
-    // User location marker
     let userMarker = null;
+    let currentLatLng = null;
+    let currentHeading = 0;
+    let compassActive = false;
 
-    // Layer Group for Partner's imported tracks (Amber/Orange)
+    let myCoordinates = JSON.parse(localStorage.getItem('my_searched_path')) || [];
+    let myWaypoints = JSON.parse(localStorage.getItem('my_waypoints')) || [];
+
+    const myPolyline = L.polyline(myCoordinates, { color: '#00e5ff', weight: 4, opacity: 0.85 }).addTo(map);
+    const waypointLayerGroup = L.layerGroup().addTo(map);
     const partnerLayerGroup = L.layerGroup().addTo(map);
 
-    // Load any previously saved partner track from localStorage
-    const savedPartner = localStorage.getItem('partner_searched_path');
-    if (savedPartner) {
-      try {
-        const geojson = JSON.parse(savedPartner);
-        L.geoJSON(geojson, {
-          style: { color: '#ffb300', weight: 4, opacity: 0.75, dashArray: '4, 6' }
-        }).addTo(partnerLayerGroup);
-      } catch (e) {
-        console.error("Failed to load partner layer", e);
+    renderMyWaypoints();
+
+    // Layer Controls
+    L.control.layers(
+      { "USGS Topo": topoLayer, "Satellite": satLayer },
+      { "🚫 No-Harvest Zones": restrictedLayer, "My Waypoints": waypointLayerGroup, "Partner Data": partnerLayerGroup },
+      { position: 'topright' }
+    ).addTo(map);
+
+    // 4. Compass & Device Orientation Engine
+    function initCompass() {
+      if (compassActive) return;
+
+      // iOS 13+ permission flow
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+          .then(permissionState => {
+            if (permissionState === 'granted') {
+              window.addEventListener('deviceorientation', handleOrientation, true);
+              compassActive = true;
+            }
+          })
+          .catch(console.error);
+      } else {
+        // Android & non-iOS devices
+        if ('ondeviceorientationabsolute' in window) {
+          window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+          compassActive = true;
+        } else if ('ondeviceorientation' in window) {
+          window.addEventListener('deviceorientation', handleOrientation, true);
+          compassActive = true;
+        }
       }
     }
 
-    // 3. Geolocation Engine
+    function handleOrientation(event) {
+      let heading = null;
+
+      // iOS WebKit heading (0 to 360, 0 = True North)
+      if (typeof event.webkitCompassHeading !== 'undefined') {
+        heading = event.webkitCompassHeading;
+      } 
+      // Android absolute orientation
+      else if (event.absolute && event.alpha !== null) {
+        heading = 360 - event.alpha;
+      } 
+      // Fallback
+      else if (event.alpha !== null) {
+        heading = 360 - event.alpha;
+      }
+
+      if (heading !== null) {
+        updateHeadingVisual(Math.round(heading));
+      }
+    }
+
+    function updateHeadingVisual(deg) {
+      currentHeading = deg;
+      const pointer = document.getElementById('userHeadingPointer');
+      if (pointer) {
+        pointer.style.transform = `rotate(${deg}deg)`;
+      }
+
+      // Calculate Cardinal Label (N, NE, E, SE, S, SW, W, NW)
+      const cardinals = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+      const idx = Math.round(deg / 45) % 8;
+      const cardinal = cardinals[idx];
+
+      const formattedDeg = deg.toString().padStart(3, '0');
+      document.getElementById('compassBearing').innerText = `🧭 ${formattedDeg}° ${cardinal}`;
+    }
+
+    // 5. GPS & Directional Location Marker
+    function updateUserMarker(lat, lng) {
+      if (!userMarker) {
+        // Create directional HTML marker with SVG pointer cone
+        const directionalIcon = L.divIcon({
+          className: 'user-loc-div-icon',
+          html: `
+            <div class="user-loc-wrapper">
+              <svg id="userHeadingPointer" class="user-heading-pointer" viewBox="0 0 44 44" style="transform: rotate(${currentHeading}deg);">
+                <!-- Directional beam / cone -->
+                <path d="M22 2 L32 20 L22 16 L12 20 Z" fill="#00e5ff" opacity="0.9" />
+                <!-- Beam glow -->
+                <polygon points="22,2 38,24 6,24" fill="url(#grad)" opacity="0.25" />
+                <defs>
+                  <linearGradient id="grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#00e5ff" stop-opacity="0.8"/>
+                    <stop offset="100%" stop-color="#00e5ff" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div class="user-center-dot"></div>
+            </div>
+          `,
+          iconSize: [44, 44],
+          iconAnchor: [22, 22]
+        });
+
+        userMarker = L.marker([lat, lng], { icon: directionalIcon }).addTo(map);
+      } else {
+        userMarker.setLatLng([lat, lng]);
+      }
+    }
+
+    function locateUser() {
+      initCompass();
+      if (!navigator.geolocation) {
+        alert("GPS not supported on this browser.");
+        return;
+      }
+      document.getElementById('gpsStatus').innerText = "📍 GPS: Locating...";
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          currentLatLng = { lat, lng };
+
+          if (pos.coords.heading && !compassActive) {
+            updateHeadingVisual(Math.round(pos.coords.heading));
+          }
+
+          updateUserMarker(lat, lng);
+          map.setView([lat, lng], 16);
+          document.getElementById('gpsStatus').innerText = `📍 GPS: Located (±${Math.round(pos.coords.accuracy)}m)`;
+        },
+        handleGeoError,
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+
     function toggleTracking() {
+      initCompass();
       const btn = document.getElementById('trackBtn');
       const status = document.getElementById('gpsStatus');
 
       if (!isTracking) {
         if (!navigator.geolocation) {
-          alert('Geolocation is not supported by your mobile browser.');
+          alert('Geolocation not supported.');
           return;
         }
 
@@ -221,42 +437,32 @@
         status.innerText = '📍 GPS: Searching...';
 
         watchId = navigator.geolocation.watchPosition(
-          (position) => {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            const accuracy = Math.round(position.coords.accuracy);
+          (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            const accuracy = Math.round(pos.coords.accuracy);
 
+            currentLatLng = { lat, lng };
             status.innerText = `📍 GPS: Locked (±${accuracy}m)`;
 
-            // Update or create user location marker
-            if (!userMarker) {
-              userMarker = L.circleMarker([lat, lng], {
-                radius: 7,
-                color: '#ffffff',
-                fillColor: '#00e5ff',
-                fillOpacity: 1
-              }).addTo(map);
-              map.setView([lat, lng], 15);
-            } else {
-              userMarker.setLatLng([lat, lng]);
+            // If phone doesn't have magnetometer or disabled, fall back to walking GPS heading
+            if (pos.coords.heading !== null && !isNaN(pos.coords.heading) && !compassActive) {
+              updateHeadingVisual(Math.round(pos.coords.heading));
             }
 
-            // Append new breadcrumb point if accurate enough (< 30m)
+            updateUserMarker(lat, lng);
+
             if (accuracy <= 30) {
               myCoordinates.push([lat, lng]);
               myPolyline.setLatLngs(myCoordinates);
-              document.getElementById('trackPoints').innerText = `Points: ${myCoordinates.length}`;
               localStorage.setItem('my_searched_path', JSON.stringify(myCoordinates));
+              updateStats();
             }
           },
-          (error) => {
-            console.error(error);
-            status.innerText = '⚠️ GPS Error: Check permissions';
-          },
-          { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+          handleGeoError,
+          { enableHighAccuracy: true, maximumAge: 1000, timeout: 12000 }
         );
       } else {
-        // Stop Tracking
         isTracking = false;
         navigator.geolocation.clearWatch(watchId);
         btn.innerText = 'Start Track';
@@ -265,74 +471,205 @@
       }
     }
 
-    // 4. Export Local Trail to GeoJSON
-    function exportGeoJSON() {
-      if (myCoordinates.length === 0) {
-        alert('No path recorded yet to export.');
+    function handleGeoError(err) {
+      const status = document.getElementById('gpsStatus');
+      if (err.code === 1) {
+        alert("Location access denied. Please allow location permissions in your browser settings.");
+        status.innerText = '⚠️ GPS: Blocked';
+      } else {
+        status.innerText = '⚠️ GPS: Weak Signal';
+      }
+    }
+
+    // 6. Waypoint Logic
+    let selectedEmoji = '🚗';
+    let selectedLabel = 'Truck / Parking';
+
+    function openWaypointModal() {
+      document.getElementById('pinNoteInput').value = '';
+      document.getElementById('waypointModal').style.display = 'block';
+    }
+
+    function closeWaypointModal() {
+      document.getElementById('waypointModal').style.display = 'none';
+    }
+
+    function selectCategory(el, emoji, label) {
+      document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedEmoji = emoji;
+      selectedLabel = label;
+    }
+
+    function saveCurrentWaypoint() {
+      const targetPos = currentLatLng || (userMarker ? userMarker.getLatLng() : null);
+
+      if (!targetPos) {
+        alert("Acquiring GPS location... Please tap 'Find Me' first.");
+        closeWaypointModal();
         return;
       }
 
-      // GeoJSON expects [lng, lat]
-      const lineCoords = myCoordinates.map(pt => [pt[1], pt[0]]);
-      const geojson = {
-        type: "FeatureCollection",
-        features: [
-          {
-            type: "Feature",
-            properties: {
-              date: new Date().toISOString().split('T')[0],
-              description: "WV Search Track"
-            },
-            geometry: {
-              type: "LineString",
-              coordinates: lineCoords
-            }
-          }
-        ]
+      const note = document.getElementById('pinNoteInput').value.trim();
+      const wp = {
+        id: Date.now(),
+        lat: targetPos.lat,
+        lng: targetPos.lng,
+        emoji: selectedEmoji,
+        category: selectedLabel,
+        note: note,
+        date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(geojson));
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", `searched_zone_${new Date().toISOString().split('T')[0]}.geojson`);
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
+      myWaypoints.push(wp);
+      localStorage.setItem('my_waypoints', JSON.stringify(myWaypoints));
+      renderMyWaypoints();
+      closeWaypointModal();
     }
 
-    // 5. Import Partner's GeoJSON Track
-    function importPartnerTrack(event) {
-      const file = event.target.files[0];
+    function renderMyWaypoints() {
+      waypointLayerGroup.clearLayers();
+      myWaypoints.forEach(wp => {
+        const icon = L.divIcon({
+          className: 'custom-waypoint-container',
+          html: `<div class="custom-waypoint-badge">${wp.emoji}</div>`,
+          iconSize: [32, 32],
+          iconAnchor: [16, 16]
+        });
+
+        const popupContent = `
+          <strong>${wp.emoji} ${wp.category}</strong><br>
+          <small style="color:#666">${wp.date}</small><br>
+          ${wp.note ? `<p style="margin:4px 0 8px 0; font-size:12px;">${wp.note}</p>` : ''}
+          <button onclick="deleteWaypoint(${wp.id})" style="background:#c62828; padding:4px 8px; font-size:11px; width:100%; margin-top:4px;">🗑️ Delete Pin</button>
+        `;
+
+        L.marker([wp.lat, wp.lng], { icon: icon }).bindPopup(popupContent).addTo(waypointLayerGroup);
+      });
+      updateStats();
+    }
+
+    function deleteWaypoint(id) {
+      myWaypoints = myWaypoints.filter(wp => wp.id !== id);
+      localStorage.setItem('my_waypoints', JSON.stringify(myWaypoints));
+      renderMyWaypoints();
+    }
+
+    function updateStats() {
+      document.getElementById('trackPoints').innerText = `Pts: ${myCoordinates.length} | Pins: ${myWaypoints.length}`;
+    }
+
+    // 7. GeoJSON Export / Import
+    function exportGeoJSON() {
+      if (myCoordinates.length === 0 && myWaypoints.length === 0) {
+        alert('No path or waypoints recorded yet.');
+        return;
+      }
+
+      const features = [];
+      if (myCoordinates.length > 0) {
+        features.push({
+          type: "Feature",
+          properties: { type: "search_trail", date: new Date().toISOString().split('T')[0] },
+          geometry: { type: "LineString", coordinates: myCoordinates.map(pt => [pt[1], pt[0]]) }
+        });
+      }
+
+      myWaypoints.forEach(wp => {
+        features.push({
+          type: "Feature",
+          properties: { type: "waypoint", emoji: wp.emoji, category: wp.category, note: wp.note, date: wp.date },
+          geometry: { type: "Point", coordinates: [wp.lng, wp.lat] }
+        });
+      });
+
+      const geojson = { type: "FeatureCollection", features: features };
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(geojson));
+      const dl = document.createElement('a');
+      dl.setAttribute("href", dataStr);
+      dl.setAttribute("download", `wv_hunt_${new Date().toISOString().split('T')[0]}.geojson`);
+      document.body.appendChild(dl);
+      dl.click();
+      dl.remove();
+    }
+
+    function importPartnerTrack(e) {
+      const file = e.target.files[0];
       if (!file) return;
 
       const reader = new FileReader();
-      reader.onload = function(e) {
+      reader.onload = function(evt) {
         try {
-          const parsed = JSON.parse(e.target.result);
+          const parsed = JSON.parse(evt.target.result);
           partnerLayerGroup.clearLayers();
-          
-          const layer = L.geoJSON(parsed, {
-            style: { color: '#ffb300', weight: 4, opacity: 0.8, dashArray: '4, 6' }
+
+          L.geoJSON(parsed, {
+            pointToLayer: function(feature, latlng) {
+              const props = feature.properties || {};
+              const icon = L.divIcon({
+                className: 'custom-waypoint-container',
+                html: `<div class="custom-waypoint-badge partner-waypoint-badge">${props.emoji || '📍'}</div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+              });
+              return L.marker(latlng, { icon: icon }).bindPopup(`
+                <strong>Partner Pin: ${props.emoji || ''} ${props.category || 'Marker'}</strong><br>
+                <small>${props.date || ''}</small>
+                ${props.note ? `<p style="margin:4px 0 0 0; font-size:12px;">${props.note}</p>` : ''}
+              `);
+            },
+            style: function(feature) {
+              return { color: '#ffb300', weight: 4, opacity: 0.8, dashArray: '4, 6' };
+            }
           }).addTo(partnerLayerGroup);
 
           localStorage.setItem('partner_searched_path', JSON.stringify(parsed));
-          map.fitBounds(layer.getBounds());
-          alert("Partner's search track loaded! It appears as a dashed amber/yellow path.");
+          alert("Partner data loaded!");
         } catch (err) {
-          alert("Invalid GeoJSON file format.");
+          alert("Invalid file format.");
         }
       };
       reader.readAsText(file);
     }
 
-    // 6. Drawer Toggle
-    function toggleModal() {
-      const modal = document.getElementById('infoModal');
-      modal.style.display = (modal.style.display === 'block') ? 'none' : 'block';
+    const savedPartner = localStorage.getItem('partner_searched_path');
+    if (savedPartner) {
+      try {
+        const parsed = JSON.parse(savedPartner);
+        L.geoJSON(parsed, {
+          pointToLayer: function(feature, latlng) {
+            const props = feature.properties || {};
+            const icon = L.divIcon({
+              className: 'custom-waypoint-container',
+              html: `<div class="custom-waypoint-badge partner-waypoint-badge">${props.emoji || '📍'}</div>`,
+              iconSize: [32, 32],
+              iconAnchor: [16, 16]
+            });
+            return L.marker(latlng, { icon: icon }).bindPopup(`
+              <strong>Partner Pin: ${props.emoji || ''} ${props.category || 'Marker'}</strong><br>
+              <small>${props.date || ''}</small>
+              ${props.note ? `<p style="margin:4px 0 0 0; font-size:12px;">${props.note}</p>` : ''}
+            `);
+          },
+          style: { color: '#ffb300', weight: 4, opacity: 0.8, dashArray: '4, 6' }
+        }).addTo(partnerLayerGroup);
+      } catch (e) { console.error(e); }
     }
 
-    // Initial point counter update
-    document.getElementById('trackPoints').innerText = `Points: ${myCoordinates.length}`;
+    // 8. Drawer & Tabs
+    function toggleGuide() {
+      const drawer = document.getElementById('guideDrawer');
+      drawer.style.display = (drawer.style.display === 'block') ? 'none' : 'block';
+    }
+
+    function switchFolder(tabId, btn) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.folder-section').forEach(s => s.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(tabId).classList.add('active');
+    }
+
+    updateStats();
   </script>
 </body>
 </html>
