@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>WV Woodland Forage & Search Tracker</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100vw;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+    }
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+    .hud-panel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      background: rgba(25, 30, 25, 0.92);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      z-index: 1000;
+      font-size: 13px;
+    }
+    .hud-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .btn-bar {
+      position: absolute;
+      bottom: 20px;
+      left: 10px;
+      right: 10px;
+      display: flex;
+      gap: 8px;
+      z-index: 1000;
+    }
+    button {
+      flex: 1;
+      padding: 12px 6px;
+      background: #2e7d32;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 13px;
+      cursor: pointer;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+    }
+    button.tracking {
+      background: #c62828;
+      animation: pulse 1.5s infinite;
+    }
+    button.secondary {
+      background: #37474f;
+    }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.7; }
+      100% { opacity: 1; }
+    }
+    /* Habitat & Legal Info Drawer */
+    #infoModal {
+      position: absolute;
+      bottom: 75px;
+      left: 10px;
+      right: 10px;
+      max-height: 55vh;
+      overflow-y: auto;
+      background: #1e281e;
+      color: #e0e0e0;
+      border-radius: 12px;
+      padding: 16px;
+      z-index: 1001;
+      display: none;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    #infoModal h3 { margin-top: 0; color: #81c784; }
+    #infoModal ul { padding-left: 18px; margin: 6px 0; }
+    .close-btn {
+      float: right;
+      background: none;
+      border: none;
+      color: #aaa;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Status Bar -->
+  <div class="hud-panel">
+    <div class="hud-row">
+      <span id="gpsStatus">📍 GPS: Idle</span>
+      <span id="trackPoints">Points: 0</span>
+    </div>
+  </div>
+
+  <!-- Habitat & Regulations Reference Drawer -->
+  <div id="infoModal">
+    <button class="close-btn" onclick="toggleModal()">✕</button>
+    <h3>West Virginia Field Guide</h3>
+    
+    <strong>🏛️ Legal Public Land Collection:</strong>
+    <ul>
+      <li><strong>Monongahela National Forest:</strong> Harvesting allowed with a valid district USFS permit. Off-limits in Wilderness Areas (Cranberry, Dolly Sods, etc.) and Fernow Experimental Forest.</li>
+      <li><strong>WV State Lands (Parks, Forests, WMAs):</strong> <u>STRICTLY PROHIBITED</u>. No digging on any state-managed land.</li>
+      <li><strong>Private Land:</strong> Allowed only with written, signed permission from the owner carried with you.</li>
+    </ul>
+
+    <strong>🌿 Habitat & Terrain Indicators:</strong>
+    <ul>
+      <li><strong>Slope / Aspect:</strong> North and East-facing slopes (cool, rich microclimates with 70–80% canopy shade).</li>
+      <li><strong>Companion Plants:</strong> Look for Maidenhair Fern, Blue Cohosh, Black Cohosh, Bloodroot, Rattlesnake Fern, and Wild Yam.</li>
+      <li><strong>Overstory Trees:</strong> Sugar Maple, American Basswood, Yellow Buckeye, White Ash, and Tulip Poplar.</li>
+    </ul>
+
+    <strong>🌱 Plant Ethics:</strong>
+    <ul>
+      <li>Must have at least 3 prongs (15 leaflets) and ripe red berries.</li>
+      <li>Always plant ripe seeds 1" deep right at the harvest site.</li>
+    </ul>
+  </div>
+
+  <!-- Main Map Container -->
+  <div id="map"></div>
+
+  <!-- Bottom Navigation Buttons -->
+  <div class="btn-bar">
+    <button id="trackBtn" onclick="toggleTracking()">Start Track</button>
+    <button class="secondary" onclick="exportGeoJSON()">Export</button>
+    <button class="secondary" onclick="document.getElementById('importFile').click()">Import</button>
+    <button class="secondary" onclick="toggleModal()">Guide</button>
+    <input type="file" id="importFile" accept=".geojson,.json" style="display:none" onchange="importPartnerTrack(event)" />
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // 1. Initialize Map centered on Monongahela National Forest, WV
+    const map = L.map('map', { zoomControl: false }).setView([38.7, -79.8], 10);
+
+    // USGS Topo Layer (Standard Topo)
+    const topoLayer = L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 16,
+      attribution: 'USGS National Map'
+    }).addTo(map);
+
+    // Satellite Imagery Layer
+    const satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 18,
+      attribution: 'Esri World Imagery'
+    });
+
+    // Base Layer Controls
+    L.control.layers({ "USGS Topographic": topoLayer, "Satellite": satLayer }, null, { position: 'topright' }).addTo(map);
+
+    // 2. Tracking State & Persistent Storage
+    let isTracking = false;
+    let watchId = null;
+    let myCoordinates = JSON.parse(localStorage.getItem('my_searched_path')) || [];
+    
+    // Polyline for user's own searched track (Bright Cyan)
+    let myPolyline = L.polyline(myCoordinates, {
+      color: '#00e5ff',
+      weight: 4,
+      opacity: 0.85
+    }).addTo(map);
+
+    // User location marker
+    let userMarker = null;
+
+    // Layer Group for Partner's imported tracks (Amber/Orange)
+    const partnerLayerGroup = L.layerGroup().addTo(map);
+
+    // Load any previously saved partner track from localStorage
+    const savedPartner = localStorage.getItem('partner_searched_path');
+    if (savedPartner) {
+      try {
+        const geojson = JSON.parse(savedPartner);
+        L.geoJSON(geojson, {
+          style: { color: '#ffb300', weight: 4, opacity: 0.75, dashArray: '4, 6' }
+        }).addTo(partnerLayerGroup);
+      } catch (e) {
+        console.error("Failed to load partner layer", e);
+      }
+    }
+
+    // 3. Geolocation Engine
+    function toggleTracking() {
+      const btn = document.getElementById('trackBtn');
+      const status = document.getElementById('gpsStatus');
+
+      if (!isTracking) {
+        if (!navigator.geolocation) {
+          alert('Geolocation is not supported by your mobile browser.');
+          return;
+        }
+
+        isTracking = true;
+        btn.innerText = 'Stop Track';
+        btn.classList.add('tracking');
+        status.innerText = '📍 GPS: Searching...';
+
+        watchId = navigator.geolocation.watchPosition(
+          (position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const accuracy = Math.round(position.coords.accuracy);
+
+            status.innerText = `📍 GPS: Locked (±${accuracy}m)`;
+
+            // Update or create user location marker
+            if (!userMarker) {
+              userMarker = L.circleMarker([lat, lng], {
+                radius: 7,
+                color: '#ffffff',
+                fillColor: '#00e5ff',
+                fillOpacity: 1
+              }).addTo(map);
+              map.setView([lat, lng], 15);
+            } else {
+              userMarker.setLatLng([lat, lng]);
+            }
+
+            // Append new breadcrumb point if accurate enough (< 30m)
+            if (accuracy <= 30) {
+              myCoordinates.push([lat, lng]);
+              myPolyline.setLatLngs(myCoordinates);
+              document.getElementById('trackPoints').innerText = `Points: ${myCoordinates.length}`;
+              localStorage.setItem('my_searched_path', JSON.stringify(myCoordinates));
+            }
+          },
+          (error) => {
+            console.error(error);
+            status.innerText = '⚠️ GPS Error: Check permissions';
+          },
+          { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+        );
+      } else {
+        // Stop Tracking
+        isTracking = false;
+        navigator.geolocation.clearWatch(watchId);
+        btn.innerText = 'Start Track';
+        btn.classList.remove('tracking');
+        status.innerText = '📍 GPS: Paused';
+      }
+    }
+
+    // 4. Export Local Trail to GeoJSON
+    function exportGeoJSON() {
+      if (myCoordinates.length === 0) {
+        alert('No path recorded yet to export.');
+        return;
+      }
+
+      // GeoJSON expects [lng, lat]
+      const lineCoords = myCoordinates.map(pt => [pt[1], pt[0]]);
+      const geojson = {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: {
+              date: new Date().toISOString().split('T')[0],
+              description: "WV Search Track"
+            },
+            geometry: {
+              type: "LineString",
+              coordinates: lineCoords
+            }
+          }
+        ]
+      };
+
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(geojson));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `searched_zone_${new Date().toISOString().split('T')[0]}.geojson`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    // 5. Import Partner's GeoJSON Track
+    function importPartnerTrack(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          partnerLayerGroup.clearLayers();
+          
+          const layer = L.geoJSON(parsed, {
+            style: { color: '#ffb300', weight: 4, opacity: 0.8, dashArray: '4, 6' }
+          }).addTo(partnerLayerGroup);
+
+          localStorage.setItem('partner_searched_path', JSON.stringify(parsed));
+          map.fitBounds(layer.getBounds());
+          alert("Partner's search track loaded! It appears as a dashed amber/yellow path.");
+        } catch (err) {
+          alert("Invalid GeoJSON file format.");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // 6. Drawer Toggle
+    function toggleModal() {
+      const modal = document.getElementById('infoModal');
+      modal.style.display = (modal.style.display === 'block') ? 'none' : 'block';
+    }
+
+    // Initial point counter update
+    document.getElementById('trackPoints').innerText = `Points: ${myCoordinates.length}`;
+  </script>
+</body>
+</html>
